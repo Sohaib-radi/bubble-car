@@ -7,7 +7,9 @@ import { Feather } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { colors, fonts, radius, gradients } from '../theme';
 import GoldButton from '../components/GoldButton';
+import ErrorBanner from '../components/ErrorBanner';
 import { supabase } from '../lib/supabase';
+import { translateAuthError } from '../lib/authErrors';
 import { SERVICE_KEYS, SERVICE_PRICES, ServiceKey } from '../data/services';
 import en from '../i18n/en.json';
 
@@ -68,7 +70,7 @@ export default function BookScreen({ onBack, onConfirm }: { onBack: () => void; 
         .order('created_at');
 
       if (carsErr) {
-        setCarsError(carsErr.message);
+        setCarsError(translateAuthError(carsErr.message));
         return;
       }
       setCars(data ?? []);
@@ -96,7 +98,7 @@ export default function BookScreen({ onBack, onConfirm }: { onBack: () => void; 
 
     setSavingCar(false);
     if (insertErr) {
-      setCarsError(insertErr.message);
+      setCarsError(translateAuthError(insertErr.message));
       return;
     }
     if (data) {
@@ -132,7 +134,7 @@ export default function BookScreen({ onBack, onConfirm }: { onBack: () => void; 
 
     setSubmitting(false);
     if (insertError) {
-      setError(insertError.message);
+      setError(translateAuthError(insertError.message));
       return;
     }
     onConfirm();
@@ -203,7 +205,7 @@ export default function BookScreen({ onBack, onConfirm }: { onBack: () => void; 
               </View>
             )}
 
-            {!!carsError && <Text style={styles.error}>{carsError}</Text>}
+            {!!carsError && <ErrorBanner message={carsError} style={{ marginTop: 9 }} />}
           </View>
 
           <View>
@@ -290,7 +292,7 @@ export default function BookScreen({ onBack, onConfirm }: { onBack: () => void; 
           </View>
         </ScrollView>
 
-        {!!error && <Text style={styles.error}>{error}</Text>}
+        {!!error && <ErrorBanner message={error} style={{ marginHorizontal: 22 }} />}
 
         <View style={styles.footer}>
           <View>
@@ -369,7 +371,6 @@ const styles = StyleSheet.create({
   timeText: { fontFamily: fonts.semibold, fontSize: 14, color: colors.text },
   timeTextActive: { fontFamily: fonts.bold, fontSize: 14, color: colors.goldOnGoldText },
   timeTextDisabled: { color: 'rgba(243,241,234,0.25)', textDecorationLine: 'line-through' },
-  error: { paddingHorizontal: 22, fontFamily: fonts.medium, fontSize: 13, color: colors.danger },
   footer: {
     paddingHorizontal: 22, paddingTop: 16, paddingBottom: 20, flexDirection: 'row', alignItems: 'center', gap: 14,
     borderTopWidth: 1, borderTopColor: colors.borderSoft,

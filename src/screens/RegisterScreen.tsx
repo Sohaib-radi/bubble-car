@@ -6,7 +6,9 @@ import { Feather } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { colors, fonts, radius } from '../theme';
 import GoldButton from '../components/GoldButton';
+import ErrorBanner from '../components/ErrorBanner';
 import { supabase } from '../lib/supabase';
+import { translateAuthError } from '../lib/authErrors';
 
 export default function RegisterScreen({ onBack, onCreateAccount, onSignIn }: { onBack: () => void; onCreateAccount: () => void; onSignIn: () => void }) {
   const { t } = useTranslation();
@@ -31,7 +33,7 @@ export default function RegisterScreen({ onBack, onCreateAccount, onSignIn }: { 
     });
     setLoading(false);
     if (signUpError) {
-      setError(signUpError.message);
+      setError(translateAuthError(signUpError.message));
       return;
     }
     if (!data.session) {
@@ -136,7 +138,7 @@ export default function RegisterScreen({ onBack, onCreateAccount, onSignIn }: { 
             </View>
           </View>
 
-          {!!error && <Text style={styles.error}>{error}</Text>}
+          {!!error && <ErrorBanner message={error} style={{ marginTop: 18 }} />}
 
           <View style={styles.footer}>
             <GoldButton
@@ -186,7 +188,6 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.border, borderRadius: radius.md,
     color: colors.text, fontFamily: fonts.semibold, fontSize: 16, letterSpacing: 0.4,
   },
-  error: { marginTop: 18, fontFamily: fonts.medium, fontSize: 13, color: colors.danger },
   footer: { marginTop: 24, gap: 14 },
   bottomRow: { textAlign: 'center', fontFamily: fonts.medium, fontSize: 14, color: colors.textDim },
   link: { color: colors.gold, fontFamily: fonts.bold },

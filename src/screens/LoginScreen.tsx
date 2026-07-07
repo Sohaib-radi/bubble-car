@@ -6,7 +6,9 @@ import { Feather } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { colors, fonts, radius } from '../theme';
 import GoldButton from '../components/GoldButton';
+import ErrorBanner from '../components/ErrorBanner';
 import { supabase } from '../lib/supabase';
+import { translateAuthError } from '../lib/authErrors';
 
 export default function LoginScreen({ onBack, onSignIn, onCreateAccount }: { onBack: () => void; onSignIn: () => void; onCreateAccount: () => void }) {
   const { t } = useTranslation();
@@ -22,7 +24,7 @@ export default function LoginScreen({ onBack, onSignIn, onCreateAccount }: { onB
     const { error: signInError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
     setLoading(false);
     if (signInError) {
-      setError(signInError.message);
+      setError(translateAuthError(signInError.message));
       return;
     }
     onSignIn();
@@ -71,7 +73,7 @@ export default function LoginScreen({ onBack, onSignIn, onCreateAccount }: { onB
             <Text style={styles.forgot}>{t('auth.login.forgotPassword')}</Text>
           </View>
 
-          {!!error && <Text style={styles.error}>{error}</Text>}
+          {!!error && <ErrorBanner message={error} />}
         </View>
 
         <View style={styles.footer}>
@@ -96,7 +98,6 @@ const styles = StyleSheet.create({
   subtitle: { marginTop: 11, fontFamily: fonts.regular, fontSize: 15, lineHeight: 22, color: colors.textDim },
   form: { marginTop: 34, gap: 18 },
   fieldLabel: { fontFamily: fonts.bold, fontSize: 12, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.label, marginBottom: 11 },
-  error: { fontFamily: fonts.medium, fontSize: 13, color: colors.danger },
   input: {
     height: 58, paddingHorizontal: 18, backgroundColor: colors.surface,
     borderWidth: 1, borderColor: colors.border, borderRadius: radius.md,

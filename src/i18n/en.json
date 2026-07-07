@@ -58,6 +58,13 @@
       "alreadyHaveAccount": "Already have an account?",
       "signIn": "Sign in",
       "checkEmailMessage": "Account created — check your email to confirm before signing in."
+    },
+    "errors": {
+      "invalidCredentials": "Incorrect email or password.",
+      "userExists": "An account with this email already exists.",
+      "emailNotConfirmed": "Please confirm your email before signing in.",
+      "weakPassword": "Password must be at least 6 characters.",
+      "invalidEmail": "Please enter a valid email address."
     }
   },
   "home": {
