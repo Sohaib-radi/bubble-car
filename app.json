@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name": "Black Bubble Wash",
+    "slug": "black-bubble-wash",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/logo.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0b0b0c"
+    },
+    "android": {
+      "package": "com.blackbubblewash.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/logo.png",
+        "backgroundColor": "#0b0b0c"
+      }
+    },
+    "plugins": [
+      "expo-localization"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "cd83e62f-e1d0-4211-a39a-227fa52b97f2"
+      }
+    },
+    "owner": "dowhileisdone"
+  }
+}
