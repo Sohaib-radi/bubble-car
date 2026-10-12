@@ -9,6 +9,7 @@ import { colors, fonts, radius } from '../theme';
 import BottomNav, { NavKey } from '../components/BottomNav';
 import LanguageModal from '../components/LanguageModal';
 import BottomSheet from '../components/BottomSheet';
+import usePullToRefresh from '../components/usePullToRefresh';
 import { supabase } from '../lib/supabase';
 import { changeLanguageAndReload, LanguageCode } from '../i18n';
 import { CAR_SELECT, Car, UserPackage, carLabel, fetchMyPackages, localized } from '../lib/catalog';
@@ -30,40 +31,44 @@ export default function ProfileScreen({ onNavigate, onLogout }: { onNavigate: (k
   const [washCount, setWashCount] = useState(0);
   const [languageModalVisible, setLanguageModalVisible] = useState(false);
 
+  const load = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('full_name, phone, created_at')
+      .eq('id', user.id)
+      .single();
+    if (profile) {
+      setFullName(profile.full_name);
+      setPhone(profile.phone ?? '');
+      setMemberYear(new Date(profile.created_at).getFullYear());
+    }
+
+    const { data: carRows } = await supabase
+      .from('cars')
+      .select(CAR_SELECT)
+      .eq('owner_id', user.id)
+      .order('created_at')
+      .returns<Car[]>();
+    setCars(carRows ?? []);
+
+    const { userPackages } = await fetchMyPackages(user.id);
+    setMyPackages(userPackages);
+
+    const { count: washes } = await supabase
+      .from('bookings')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id);
+    setWashCount(washes ?? 0);
+  };
+
   useEffect(() => {
-    (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('full_name, phone, created_at')
-        .eq('id', user.id)
-        .single();
-      if (profile) {
-        setFullName(profile.full_name);
-        setPhone(profile.phone ?? '');
-        setMemberYear(new Date(profile.created_at).getFullYear());
-      }
-
-      const { data: carRows } = await supabase
-        .from('cars')
-        .select(CAR_SELECT)
-        .eq('owner_id', user.id)
-        .order('created_at')
-        .returns<Car[]>();
-      setCars(carRows ?? []);
-
-      const { userPackages } = await fetchMyPackages(user.id);
-      setMyPackages(userPackages);
-
-      const { count: washes } = await supabase
-        .from('bookings')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', user.id);
-      setWashCount(washes ?? 0);
-    })();
+    load();
   }, []);
+
+  const refreshControl = usePullToRefresh(load);
 
   const handleSelectLanguage = async (lang: LanguageCode) => {
     setLanguageModalVisible(false);
@@ -99,7 +104,7 @@ export default function ProfileScreen({ onNavigate, onLogout }: { onNavigate: (k
     <View style={styles.root}>
       <StatusBar style="light" />
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll} refreshControl={refreshControl}>
           <View style={styles.header}>
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>{fullName ? initialsOf(fullName) : ''}</Text>
@@ -150,7 +155,7 @@ export default function ProfileScreen({ onNavigate, onLogout }: { onNavigate: (k
             <View key={car.id} style={styles.carRow}>
               <Feather name="truck" size={18} color={colors.gold} />
               <Text style={styles.carName} numberOfLines={1}>{carLabel(car)}</Text>
-              <Text style={styles.carPlate}>{car.plate}</Text>
+              {!!car.plate && <Text style={styles.carPlate}>{car.plate}</Text>}
             </View>
           ))
         )}

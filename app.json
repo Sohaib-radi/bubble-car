@@ -18,6 +18,14 @@
       "expo-font",
       "expo-status-bar",
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Black Bubble Wash to access your photos so you can upload a payment screenshot.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/logo.png",

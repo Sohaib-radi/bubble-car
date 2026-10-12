@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, Image, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useTranslation } from 'react-i18next';
 import { colors, fonts, radius } from '../theme';
 import GoldButton from '../components/GoldButton';
@@ -16,6 +17,7 @@ import {
   Car,
   CAR_SELECT,
   carLabel,
+  carWithPlate,
   Make,
   Model,
   Pack,
@@ -66,7 +68,7 @@ export default function BookScreen({
   const lang = i18n.language;
   const locale = localeFor(lang);
 
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
 
@@ -89,13 +91,13 @@ export default function BookScreen({
   const [period, setPeriod] = useState<PeriodKey | null>(null);
   const [paymentId, setPaymentId] = useState<string | null>(null);
   const [paymentReference, setPaymentReference] = useState('');
+  const [proof, setProof] = useState<{ uri: string; mimeType: string } | null>(null);
 
   // sheets
   const [planSheetPack, setPlanSheetPack] = useState<Pack | null>(null);
   const [addCarOpen, setAddCarOpen] = useState(false);
   const [newMakeId, setNewMakeId] = useState<string | null>(null);
   const [newModelId, setNewModelId] = useState<string | null>(null);
-  const [newCarPlate, setNewCarPlate] = useState('');
   const [savingCar, setSavingCar] = useState(false);
   const [carError, setCarError] = useState('');
 
@@ -166,7 +168,9 @@ export default function BookScreen({
   const planMatch = usablePackage(myPackages, carId, packId, date);
   const payingWithPlan = usePlan && !!planMatch;
   const planLostForDate = usePlan && !planMatch;
-  const needsReference = !payingWithPlan && !!selectedPayment?.account_info;
+  // Transfers need proof: a transaction code, a screenshot, or both.
+  const needsProof = !payingWithPlan && !!selectedPayment?.account_info;
+  const hasProof = !!paymentReference.trim() || !!proof;
   const dayInfo = availability[date];
   const enabledPeriods = settings?.periods.filter((p) => p.enabled) ?? [];
 
@@ -197,12 +201,12 @@ export default function BookScreen({
 
   const handleAddCar = async () => {
     const model = models.find((m) => m.id === newModelId);
-    if (!userId || !newMakeId || !model || !newCarPlate.trim()) return;
+    if (!userId || !newMakeId || !model) return;
     setSavingCar(true);
     setCarError('');
     const { data, error: insertErr } = await supabase
       .from('cars')
-      .insert({ owner_id: userId, make_id: newMakeId, model_id: model.id, car_type: model.car_type, plate: newCarPlate.trim() })
+      .insert({ owner_id: userId, make_id: newMakeId, model_id: model.id, car_type: model.car_type })
       .select(CAR_SELECT)
       .returns<Car[]>()
       .single();
@@ -217,8 +221,14 @@ export default function BookScreen({
     }
     setNewMakeId(null);
     setNewModelId(null);
-    setNewCarPlate('');
     setAddCarOpen(false);
+  };
+
+  const pickProof = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7 });
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+    setProof({ uri: asset.uri, mimeType: asset.mimeType ?? 'image/jpeg' });
   };
 
   const handleConfirm = async () => {
@@ -226,6 +236,22 @@ export default function BookScreen({
     if (!payingWithPlan && price === null) return;
     setError('');
     setSubmitting(true);
+
+    // Upload the screenshot first, so a failed upload leaves no half-made booking.
+    let proofPath: string | null = null;
+    if (!payingWithPlan && needsProof && proof) {
+      const ext = proof.mimeType.split('/')[1] ?? 'jpg';
+      proofPath = `${userId}/${Date.now()}.${ext}`;
+      const body = await (await fetch(proof.uri)).arrayBuffer();
+      const { error: uploadError } = await supabase.storage
+        .from('payment-proofs')
+        .upload(proofPath, body, { contentType: proof.mimeType });
+      if (uploadError) {
+        setSubmitting(false);
+        setError(translateAuthError(uploadError.message));
+        return;
+      }
+    }
 
     // Customers create a 'draft'; the database then allows
     // draft -> awaiting_payment_proof -> pending_review, which staff review.
@@ -260,7 +286,11 @@ export default function BookScreen({
     if (draft && !stepError) {
       ({ error: stepError } = await supabase
         .from('bookings')
-        .update({ status: 'pending_review', payment_reference: payingWithPlan ? null : paymentReference.trim() || null })
+        .update({
+          status: 'pending_review',
+          payment_reference: payingWithPlan ? null : paymentReference.trim() || null,
+          payment_proof_path: proofPath,
+        })
         .eq('id', draft.id));
     }
 
@@ -272,7 +302,7 @@ export default function BookScreen({
     onConfirm({
       ref: draft.id.slice(0, 6).toUpperCase(),
       serviceName: localized(lang, selectedPack.name_en, selectedPack.name_ar),
-      carText: `${carLabel(selectedCar)} · ${selectedCar.plate}`,
+      carText: carWithPlate(selectedCar),
       date,
       period,
       price: payingWithPlan ? 0 : price ?? 0,
@@ -281,7 +311,7 @@ export default function BookScreen({
     });
   };
 
-  const goBack = () => (step === 1 ? onBack() : setStep((s) => (s - 1) as 1 | 2));
+  const goBack = () => (step === 1 ? onBack() : setStep((s) => (s - 1) as 1 | 2 | 3));
 
   const formatDay = (d: string, opts: Intl.DateTimeFormatOptions) =>
     new Date(`${d}T00:00:00`).toLocaleDateString(locale, opts);
@@ -309,11 +339,14 @@ export default function BookScreen({
       ? !!selectedCar && !!selectedPack && (usePlan || price !== null)
       : step === 2
         ? !dayInfo?.whole_day_blocked && !planLostForDate
-        : !submitting && (payingWithPlan || price !== null) && !(needsReference && !paymentReference.trim());
+        : step === 3
+          ? payingWithPlan || (price !== null && !!selectedPayment && (!needsProof || hasProof))
+          : !submitting && (payingWithPlan || price !== null);
 
   const onContinue = () => {
     if (step === 1) setStep(2);
     else if (step === 2) setStep(3);
+    else if (step === 3) setStep(4);
     else handleConfirm();
   };
 
@@ -327,11 +360,11 @@ export default function BookScreen({
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={styles.title}>{t(`book.stepTitles.${step}`)}</Text>
-            <Text style={styles.stepCount}>{t('book.stepOf', { step, total: 3 })}</Text>
+            <Text style={styles.stepCount}>{t('book.stepOf', { step, total: 4 })}</Text>
           </View>
         </View>
         <View style={styles.progress}>
-          {[1, 2, 3].map((s) => (
+          {[1, 2, 3, 4].map((s) => (
             <View key={s} style={[styles.progressSeg, s <= step && styles.progressSegOn]} />
           ))}
         </View>
@@ -354,7 +387,7 @@ export default function BookScreen({
                           <Feather name="truck" size={18} color={colors.gold} />
                           <View>
                             <Text style={styles.carName}>{carLabel(c)}</Text>
-                            <Text style={styles.carPlate}>{c.plate}</Text>
+                            {!!c.plate && <Text style={styles.carPlate}>{c.plate}</Text>}
                           </View>
                         </TouchableOpacity>
                       );
@@ -501,28 +534,6 @@ export default function BookScreen({
 
             {step === 3 && selectedPack && selectedCar && (
               <>
-                <View style={styles.summary}>
-                  <SummaryRow
-                    icon="droplet"
-                    value={localized(lang, selectedPack.name_en, selectedPack.name_ar)}
-                    onEdit={() => setStep(1)}
-                    editLabel={t('book.edit')}
-                  />
-                  <SummaryRow
-                    icon="truck"
-                    value={`${carLabel(selectedCar)} · ${selectedCar.plate}`}
-                    onEdit={() => setStep(1)}
-                    editLabel={t('book.edit')}
-                  />
-                  <SummaryRow
-                    icon="calendar"
-                    value={`${formatDay(date, { weekday: 'long', day: 'numeric', month: 'short' })} · ${periodLabel(period)}`}
-                    onEdit={() => setStep(2)}
-                    editLabel={t('book.edit')}
-                    last
-                  />
-                </View>
-
                 {payingWithPlan ? (
                   <View style={styles.coveredBox}>
                     <Feather name="gift" size={22} color={colors.success} />
@@ -555,17 +566,101 @@ export default function BookScreen({
                         );
                       })}
                     </View>
-                    {needsReference && (
-                      <TextInput
-                        style={styles.input}
-                        value={paymentReference}
-                        onChangeText={setPaymentReference}
-                        placeholder={t('book.referencePlaceholder')}
-                        placeholderTextColor={colors.textFaint}
-                      />
+                    {needsProof && (
+                      <View style={{ marginTop: 18 }}>
+                        <Text style={styles.sectionLabel}>{t('book.paymentProof')}</Text>
+                        <Text style={[styles.hint, { marginTop: 0 }]}>{t('book.paymentProofHint')}</Text>
+                        <TextInput
+                          style={styles.input}
+                          value={paymentReference}
+                          onChangeText={setPaymentReference}
+                          placeholder={t('book.referencePlaceholder')}
+                          placeholderTextColor={colors.textFaint}
+                        />
+                        <View style={styles.orRow}>
+                          <View style={styles.orLine} />
+                          <Text style={styles.orText}>{t('book.or')}</Text>
+                          <View style={styles.orLine} />
+                        </View>
+                        {proof ? (
+                          <View style={styles.proofBox}>
+                            <Image source={{ uri: proof.uri }} style={styles.proofThumb} />
+                            <Text style={[styles.payName, { flex: 1 }]}>{t('book.screenshotAdded')}</Text>
+                            <TouchableOpacity onPress={() => setProof(null)} accessibilityLabel={t('book.removeScreenshot')}>
+                              <Feather name="x" size={20} color={colors.textFaint} />
+                            </TouchableOpacity>
+                          </View>
+                        ) : (
+                          <TouchableOpacity style={styles.uploadBtn} onPress={pickProof}>
+                            <Feather name="image" size={18} color={colors.gold} />
+                            <Text style={styles.addCarText}>{t('book.uploadScreenshot')}</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
                     )}
                   </View>
                 )}
+              </>
+            )}
+
+            {step === 4 && selectedPack && selectedCar && (
+              <>
+                <View style={styles.summary}>
+                  <SummaryRow
+                    icon="droplet"
+                    value={localized(lang, selectedPack.name_en, selectedPack.name_ar)}
+                    onEdit={() => setStep(1)}
+                    editLabel={t('book.edit')}
+                  />
+                  <SummaryRow
+                    icon="truck"
+                    value={carWithPlate(selectedCar)}
+                    onEdit={() => setStep(1)}
+                    editLabel={t('book.edit')}
+                  />
+                  <SummaryRow
+                    icon="calendar"
+                    value={`${formatDay(date, { weekday: 'long', day: 'numeric', month: 'short' })} · ${periodLabel(period)}`}
+                    onEdit={() => setStep(2)}
+                    editLabel={t('book.edit')}
+                  />
+                  <SummaryRow
+                    icon={payingWithPlan ? 'gift' : 'credit-card'}
+                    value={
+                      payingWithPlan
+                        ? t('book.coveredTitle')
+                        : selectedPayment
+                          ? localized(lang, selectedPayment.label_en, selectedPayment.label_ar)
+                          : '—'
+                    }
+                    onEdit={() => setStep(3)}
+                    editLabel={t('book.edit')}
+                    last
+                  />
+                </View>
+
+                <View>
+                  <Text style={styles.sectionLabel}>{t('book.paymentVerification')}</Text>
+                  <View style={styles.summary}>
+                    <VerifyRow
+                      label={t('book.amount')}
+                      value={payingWithPlan ? t('book.included') : price !== null ? t('common.egp', { price }) : '—'}
+                    />
+                    {!payingWithPlan && needsProof && !!paymentReference.trim() && (
+                      <VerifyRow label={t('book.transactionCode')} value={paymentReference.trim()} />
+                    )}
+                    {!payingWithPlan && needsProof && proof && (
+                      <View style={styles.verifyRow}>
+                        <Text style={styles.sheetRowLabel}>{t('book.screenshot')}</Text>
+                        <Image source={{ uri: proof.uri }} style={styles.proofThumb} />
+                      </View>
+                    )}
+                  </View>
+                  <View style={[styles.notice, { marginTop: 12 }]}>
+                    <Feather name="shield" size={18} color={colors.gold} />
+                    <Text style={styles.noticeText}>{payingWithPlan ? t('book.verifyNotePlan') : t('book.verifyNote')}</Text>
+                  </View>
+                </View>
 
                 {dayInfo?.is_full && (
                   <View style={styles.notice}>
@@ -582,13 +677,13 @@ export default function BookScreen({
 
         <View style={styles.footer}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.footerLabel}>{step === 3 ? t('book.total') : t('book.yourChoice')}</Text>
+            <Text style={styles.footerLabel}>{step >= 3 ? t('book.total') : t('book.yourChoice')}</Text>
             <Text style={styles.footerValue} numberOfLines={1}>
               {footerSummary}
             </Text>
           </View>
           <GoldButton
-            title={step === 3 ? (submitting ? t('book.booking') : t('book.confirmBooking')) : t('book.continue')}
+            title={step === 4 ? (submitting ? t('book.booking') : t('book.confirmBooking')) : t('book.continue')}
             onPress={onContinue}
             disabled={!canContinue}
             style={{ minWidth: 150 }}
@@ -657,19 +752,11 @@ export default function BookScreen({
               </View>
             </>
           )}
-          <Text style={styles.formLabel}>{t('book.plate')}</Text>
-          <TextInput
-            style={[styles.input, { marginTop: 0 }]}
-            value={newCarPlate}
-            onChangeText={setNewCarPlate}
-            placeholder={t('book.platePlaceholder')}
-            placeholderTextColor={colors.textFaint}
-          />
           {!!carError && <ErrorBanner message={carError} />}
           <GoldButton
             title={savingCar ? t('book.saving') : t('book.saveVehicle')}
             onPress={handleAddCar}
-            disabled={savingCar || !newMakeId || !newModelId || !newCarPlate.trim()}
+            disabled={savingCar || !newMakeId || !newModelId}
             height={52}
           />
         </ScrollView>
@@ -708,7 +795,7 @@ function PlanSheetContent({
       <Text style={styles.sheetSubtitle}>{t('book.planSheet.subtitle')}</Text>
       <View style={styles.sheetTable}>
         <SheetRow label={t('book.planSheet.service')} value={packName} />
-        <SheetRow label={t('book.planSheet.car')} value={`${carLabel(car)} · ${car.plate}`} />
+        <SheetRow label={t('book.planSheet.car')} value={carWithPlate(car)} />
         <SheetRow
           label={t('book.planSheet.plan')}
           value={localized(lang, match.userPackage.package_name_en, match.userPackage.package_name_ar)}
@@ -747,6 +834,15 @@ function SummaryRow({
       <Text style={styles.editLink} onPress={onEdit}>
         {editLabel}
       </Text>
+    </View>
+  );
+}
+
+function VerifyRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.verifyRow}>
+      <Text style={styles.sheetRowLabel}>{label}</Text>
+      <Text style={styles.sheetRowValue}>{value}</Text>
     </View>
   );
 }
@@ -831,6 +927,19 @@ const styles = StyleSheet.create({
   summaryRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 15 },
   summaryRowBorder: { borderBottomWidth: 1, borderBottomColor: colors.borderSoft },
   summaryValue: { flex: 1, fontFamily: fonts.bold, fontSize: 15, color: colors.text },
+  verifyRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, paddingVertical: 13 },
+  orRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 12 },
+  orLine: { flex: 1, height: 1, backgroundColor: colors.border },
+  orText: { fontFamily: fonts.semibold, fontSize: 12, color: colors.textFaint },
+  uploadBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 52,
+    borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.borderGold, borderStyle: 'dashed',
+  },
+  proofBox: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10,
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md,
+  },
+  proofThumb: { width: 48, height: 64, borderRadius: 8, backgroundColor: colors.surfaceAlt },
   editLink: { fontFamily: fonts.bold, fontSize: 13, color: colors.gold, padding: 4 },
 
   coveredBox: {

@@ -10,12 +10,14 @@ import ErrorBanner from '../components/ErrorBanner';
 import BottomSheet from '../components/BottomSheet';
 import PackageCard from '../components/PackageCard';
 import BottomNav, { NavKey } from '../components/BottomNav';
+import usePullToRefresh from '../components/usePullToRefresh';
 import { supabase } from '../lib/supabase';
 import { translateAuthError } from '../lib/authErrors';
 import {
   Car,
   CAR_SELECT,
   carLabel,
+  carWithPlate,
   fetchMyPackages,
   fetchPackages,
   fetchPacks,
@@ -53,38 +55,43 @@ export default function PackagesScreen({ onNavigate }: { onNavigate: (k: NavKey)
     setMyPackages(res.userPackages);
   };
 
-  useEffect(() => {
-    (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        setError(t('common.notSignedIn'));
-        setLoading(false);
-        return;
-      }
-      setUserId(user.id);
-
-      const [carsRes, pkgRes, packsRes, paymentRes] = await Promise.all([
-        supabase.from('cars').select(CAR_SELECT).eq('owner_id', user.id).order('created_at').returns<Car[]>(),
-        fetchPackages(),
-        fetchPacks(),
-        supabase
-          .from('payment_methods')
-          .select('id, label_en, label_ar, account_info, instructions_en, instructions_ar')
-          .eq('active', true)
-          .order('created_at'),
-        loadMine(user.id),
-      ]);
-
-      const loadError = carsRes.error?.message ?? pkgRes.error ?? packsRes.error ?? paymentRes.error?.message;
-      if (loadError) setError(translateAuthError(loadError));
-
-      setCars(carsRes.data ?? []);
-      setPackages(pkgRes.packages);
-      setPacks(packsRes.packs);
-      setPaymentMethods(paymentRes.data ?? []);
+  const load = async () => {
+    setError('');
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setError(t('common.notSignedIn'));
       setLoading(false);
-    })();
+      return;
+    }
+    setUserId(user.id);
+
+    const [carsRes, pkgRes, packsRes, paymentRes] = await Promise.all([
+      supabase.from('cars').select(CAR_SELECT).eq('owner_id', user.id).order('created_at').returns<Car[]>(),
+      fetchPackages(),
+      fetchPacks(),
+      supabase
+        .from('payment_methods')
+        .select('id, label_en, label_ar, account_info, instructions_en, instructions_ar')
+        .eq('active', true)
+        .order('created_at'),
+      loadMine(user.id),
+    ]);
+
+    const loadError = carsRes.error?.message ?? pkgRes.error ?? packsRes.error ?? paymentRes.error?.message;
+    if (loadError) setError(translateAuthError(loadError));
+
+    setCars(carsRes.data ?? []);
+    setPackages(pkgRes.packages);
+    setPacks(packsRes.packs);
+    setPaymentMethods(paymentRes.data ?? []);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    load();
   }, []);
+
+  const refreshControl = usePullToRefresh(load);
 
   const selectedCar = cars.find((c) => c.id === carId) ?? null;
   const selectedPayment = paymentMethods.find((m) => m.id === paymentId) ?? null;
@@ -153,14 +160,14 @@ export default function PackagesScreen({ onNavigate }: { onNavigate: (k: NavKey)
 
   const carText = (id: string) => {
     const car = cars.find((c) => c.id === id);
-    return car ? `${carLabel(car)} · ${car.plate}` : undefined;
+    return car ? carWithPlate(car) : undefined;
   };
 
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll} refreshControl={refreshControl}>
           <Text style={styles.title}>{t('packages.title')}</Text>
           {!!error && <ErrorBanner message={error} />}
           {loading && <ActivityIndicator color={colors.gold} style={{ marginTop: 40 }} />}
@@ -256,7 +263,7 @@ export default function PackagesScreen({ onNavigate }: { onNavigate: (k: NavKey)
                         <Feather name="truck" size={18} color={colors.gold} />
                         <View style={{ flex: 1 }}>
                           <Text style={styles.optionName}>{carLabel(c)}</Text>
-                          <Text style={styles.optionDesc}>{disabled ? t('packages.notForThisCar') : c.plate}</Text>
+                          <Text style={styles.optionDesc}>{disabled ? t('packages.notForThisCar') : c.plate ?? ''}</Text>
                         </View>
                         {!disabled && <Text style={styles.optionPrice}>{t('common.egp', { price: p })}</Text>}
                       </TouchableOpacity>

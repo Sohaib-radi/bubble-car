@@ -10,7 +10,7 @@ export const CAR_SELECT = 'id, plate, car_type, custom_label, car_makes(name), c
 
 export type Car = {
   id: string;
-  plate: string;
+  plate: string | null;
   car_type: CarType;
   custom_label: string | null;
   car_makes: { name: string } | null;
@@ -21,6 +21,11 @@ export function carLabel(car: Pick<Car, 'custom_label' | 'car_makes' | 'car_mode
   if (!car) return '—';
   if (car.custom_label) return car.custom_label;
   return [car.car_makes?.name, car.car_models?.name].filter(Boolean).join(' ') || '—';
+}
+
+// "Toyota Corolla · 234 ABC", or just the name when no plate was given.
+export function carWithPlate(car: Pick<Car, 'plate' | 'custom_label' | 'car_makes' | 'car_models'>): string {
+  return car.plate ? `${carLabel(car)} · ${car.plate}` : carLabel(car);
 }
 
 export type Make = { id: string; name: string };

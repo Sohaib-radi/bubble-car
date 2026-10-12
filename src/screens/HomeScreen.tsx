@@ -9,12 +9,14 @@ import { colors, fonts, gradients } from '../theme';
 import BottomNav, { NavKey } from '../components/BottomNav';
 import LanguageModal from '../components/LanguageModal';
 import PackageCard from '../components/PackageCard';
+import usePullToRefresh from '../components/usePullToRefresh';
 import { supabase } from '../lib/supabase';
 import {
   ACTIVE_STATUSES,
   Car,
   CAR_SELECT,
   carLabel,
+  carWithPlate,
   fetchMyPackages,
   fetchPackages,
   localized,
@@ -78,50 +80,54 @@ export default function HomeScreen({
     return t('home.greeting.evening');
   };
 
+  const load = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const [profileRes, bookingsRes, myPackagesRes, carsRes, packagesRes] = await Promise.all([
+      supabase.from('profiles').select('full_name').eq('id', user.id).single(),
+      supabase
+        .from('bookings')
+        .select(
+          'id, pack_name_en, pack_name_ar, booking_date, booking_time, status, user_package_id, cars(plate, custom_label, car_makes(name), car_models(name))'
+        )
+        .eq('user_id', user.id)
+        .gte('booking_date', isoDate(new Date()))
+        .in('status', ACTIVE_STATUSES)
+        .order('booking_date', { ascending: true })
+        .limit(1)
+        .returns<Upcoming[]>(),
+      fetchMyPackages(user.id),
+      supabase.from('cars').select(CAR_SELECT).eq('owner_id', user.id).returns<Car[]>(),
+      fetchPackages(),
+    ]);
+
+    if (profileRes.data) setFullName(profileRes.data.full_name);
+    setUpcoming(bookingsRes.data?.[0] ?? null);
+    setMyPackages(myPackagesRes.userPackages);
+    setCars(carsRes.data ?? []);
+    const prices = packagesRes.packages.flatMap((p) => Object.values(p.prices)).filter((p): p is number => typeof p === 'number');
+    setCheapestPackage(prices.length ? Math.min(...prices) : null);
+    setLoaded(true);
+  };
+
   useEffect(() => {
-    (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const [profileRes, bookingsRes, myPackagesRes, carsRes, packagesRes] = await Promise.all([
-        supabase.from('profiles').select('full_name').eq('id', user.id).single(),
-        supabase
-          .from('bookings')
-          .select(
-            'id, pack_name_en, pack_name_ar, booking_date, booking_time, status, user_package_id, cars(plate, custom_label, car_makes(name), car_models(name))'
-          )
-          .eq('user_id', user.id)
-          .gte('booking_date', isoDate(new Date()))
-          .in('status', ACTIVE_STATUSES)
-          .order('booking_date', { ascending: true })
-          .limit(1)
-          .returns<Upcoming[]>(),
-        fetchMyPackages(user.id),
-        supabase.from('cars').select(CAR_SELECT).eq('owner_id', user.id).returns<Car[]>(),
-        fetchPackages(),
-      ]);
-
-      if (profileRes.data) setFullName(profileRes.data.full_name);
-      setUpcoming(bookingsRes.data?.[0] ?? null);
-      setMyPackages(myPackagesRes.userPackages);
-      setCars(carsRes.data ?? []);
-      const prices = packagesRes.packages.flatMap((p) => Object.values(p.prices)).filter((p): p is number => typeof p === 'number');
-      setCheapestPackage(prices.length ? Math.min(...prices) : null);
-      setLoaded(true);
-    })();
+    load();
   }, []);
+
+  const refreshControl = usePullToRefresh(load);
 
   const shownPackages = myPackages.filter((up) => up.status === 'active' || up.status === 'pending_review');
   const carText = (carId: string) => {
     const car = cars.find((c) => c.id === carId);
-    return car ? `${carLabel(car)} · ${car.plate}` : undefined;
+    return car ? carWithPlate(car) : undefined;
   };
 
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll} refreshControl={refreshControl}>
           <View style={styles.header}>
             <View style={{ flex: 1 }}>
               <Text style={styles.greeting}>{greetingForNow()}</Text>

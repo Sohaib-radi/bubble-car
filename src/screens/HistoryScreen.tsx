@@ -7,6 +7,7 @@ import { Feather } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { colors, fonts, radius, gradients } from '../theme';
 import BottomNav, { NavKey } from '../components/BottomNav';
+import usePullToRefresh from '../components/usePullToRefresh';
 import { supabase } from '../lib/supabase';
 import { ACTIVE_STATUSES, Car, carLabel, localized } from '../lib/catalog';
 import { isPeriodKey, isoDate } from '../lib/settings';
@@ -44,16 +45,20 @@ export default function HistoryScreen({
 
   const formatDate = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' });
 
+  const load = async () => {
+    const { data } = await supabase
+      .from('bookings')
+      .select('id, pack_name_en, pack_name_ar, price, booking_date, booking_time, user_package_id, status, cars(plate, custom_label, car_makes(name), car_models(name))')
+      .order('booking_date', { ascending: false })
+      .returns<Booking[]>();
+    if (data) setBookings(data);
+  };
+
   useEffect(() => {
-    (async () => {
-      const { data } = await supabase
-        .from('bookings')
-        .select('id, pack_name_en, pack_name_ar, price, booking_date, booking_time, user_package_id, status, cars(plate, custom_label, car_makes(name), car_models(name))')
-        .order('booking_date', { ascending: false })
-        .returns<Booking[]>();
-      if (data) setBookings(data);
-    })();
+    load();
   }, []);
+
+  const refreshControl = usePullToRefresh(load);
 
   const today = isoDate(new Date());
   const isUpcoming = (b: Booking) => b.booking_date >= today && ACTIVE_STATUSES.includes(b.status);
@@ -69,7 +74,7 @@ export default function HistoryScreen({
     <View style={styles.root}>
       <StatusBar style="light" />
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll} refreshControl={refreshControl}>
           <Text style={styles.title}>{t('history.title')}</Text>
 
           <View style={styles.statsCard}>
