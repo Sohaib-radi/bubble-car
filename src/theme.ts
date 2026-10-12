@@ -59,7 +59,7 @@ export const spacing = {
   xl: 26,
 };
 
-import { I18nManager } from 'react-native';
+import { I18nManager, Platform } from 'react-native';
 
 // Manrope has no Arabic glyphs, so Arabic (the app's only RTL language) uses Cairo instead.
 // Safe to decide once at module load: switching languages always triggers a full app reload.
@@ -80,13 +80,18 @@ export const fonts = I18nManager.isRTL
     };
 
 export const shadow = {
-  cta: {
-    shadowColor: '#c9a24b',
-    shadowOpacity: 0.35,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 14 },
-    elevation: 8,
-  },
+  // Gold glow under CTAs. iOS only: these sit on LinearGradients, which have no
+  // solid background, and Android `elevation` then draws a dark rectangle
+  // artifact through them (very visible on semi-transparent / disabled buttons).
+  cta: Platform.select({
+    ios: {
+      shadowColor: '#c9a24b',
+      shadowOpacity: 0.35,
+      shadowRadius: 20,
+      shadowOffset: { width: 0, height: 14 },
+    },
+    default: {},
+  }),
   card: {
     shadowColor: '#000',
     shadowOpacity: 0.3,

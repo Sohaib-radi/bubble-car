@@ -8,18 +8,22 @@ import { useTranslation } from 'react-i18next';
 import { colors, fonts, radius, gradients } from '../theme';
 import BottomNav, { NavKey } from '../components/BottomNav';
 import { supabase } from '../lib/supabase';
-import { ServiceKey } from '../data/services';
+import { ACTIVE_STATUSES, Car, carLabel, localized } from '../lib/catalog';
+import { isPeriodKey, isoDate } from '../lib/settings';
 
-const FILTER_KEYS = ['all', 'thisMonth', 'fullDetail'] as const;
+const FILTER_KEYS = ['upcoming', 'past'] as const;
 type FilterKey = (typeof FILTER_KEYS)[number];
 
 type Booking = {
   id: string;
-  service_key: ServiceKey;
+  pack_name_en: string | null;
+  pack_name_ar: string | null;
   price: number;
   booking_date: string;
+  booking_time: string | null;
+  user_package_id: string | null;
   status: string;
-  cars: { name: string } | null;
+  cars: Pick<Car, 'plate' | 'custom_label' | 'car_makes' | 'car_models'> | null;
 };
 
 function localeFor(lang: string) {
@@ -35,31 +39,28 @@ export default function HistoryScreen({
 }) {
   const { t, i18n } = useTranslation();
   const locale = localeFor(i18n.language);
-  const [filter, setFilter] = useState<FilterKey>('all');
+  const [filter, setFilter] = useState<FilterKey>('upcoming');
   const [bookings, setBookings] = useState<Booking[]>([]);
 
-  const formatDate = (iso: string) => new Date(iso).toLocaleDateString(locale, { day: 'numeric', month: 'short' });
+  const formatDate = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' });
 
   useEffect(() => {
     (async () => {
       const { data } = await supabase
         .from('bookings')
-        .select('id, service_key, price, booking_date, status, cars(name)')
+        .select('id, pack_name_en, pack_name_ar, price, booking_date, booking_time, user_package_id, status, cars(plate, custom_label, car_makes(name), car_models(name))')
         .order('booking_date', { ascending: false })
         .returns<Booking[]>();
       if (data) setBookings(data);
     })();
   }, []);
 
-  const filtered = bookings.filter((b) => {
-    if (filter === 'fullDetail') return b.service_key === 'full';
-    if (filter === 'thisMonth') {
-      const now = new Date();
-      const d = new Date(b.booking_date);
-      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-    }
-    return true;
-  });
+  const today = isoDate(new Date());
+  const isUpcoming = (b: Booking) => b.booking_date >= today && ACTIVE_STATUSES.includes(b.status);
+  const filtered = bookings
+    .filter((b) => (filter === 'upcoming' ? isUpcoming(b) : !isUpcoming(b)))
+    // Upcoming: soonest first. Past: most recent first (query order).
+    .sort((a, b) => (filter === 'upcoming' ? a.booking_date.localeCompare(b.booking_date) : 0));
 
   const totalWashes = bookings.length;
   const totalSpent = bookings.reduce((sum, b) => sum + Number(b.price), 0);
@@ -103,7 +104,9 @@ export default function HistoryScreen({
           </View>
 
           <View>
-            {filtered.length === 0 && <Text style={styles.empty}>{t('history.noBookings')}</Text>}
+            {filtered.length === 0 && (
+              <Text style={styles.empty}>{filter === 'upcoming' ? t('history.noUpcoming') : t('history.noBookings')}</Text>
+            )}
             {filtered.map((item, i) => (
               <TouchableOpacity
                 key={item.id}
@@ -114,11 +117,24 @@ export default function HistoryScreen({
                   <Feather name="truck" size={20} color={colors.gold} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.rowTitle}>{t(`common.services.${item.service_key}.name`)}</Text>
-                  <Text style={styles.rowMeta}>{formatDate(item.booking_date)} · {item.cars?.name ?? 'Car'}</Text>
+                  <Text style={styles.rowTitle}>{localized(i18n.language, item.pack_name_en, item.pack_name_ar)}</Text>
+                  <Text style={styles.rowMeta}>
+                    {formatDate(item.booking_date)}
+                    {item.booking_time ? ` · ${isPeriodKey(item.booking_time) ? t(`book.periods.${item.booking_time}`) : item.booking_time}` : ''}
+                    {' · '}
+                    {carLabel(item.cars)}
+                  </Text>
+                  {item.user_package_id && (
+                    <View style={styles.planTag}>
+                      <Feather name="gift" size={11} color={colors.gold} />
+                      <Text style={styles.planTagText}>{t('history.planTag')}</Text>
+                    </View>
+                  )}
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={styles.rowPrice}>{t('common.egp', { price: item.price })}</Text>
+                  <Text style={[styles.rowPrice, item.user_package_id && { color: colors.success }]}>
+                    {item.user_package_id ? t('book.included') : t('common.egp', { price: item.price })}
+                  </Text>
                   <Text style={styles.rowStatus}>{t(`common.status.${item.status}`)}</Text>
                 </View>
               </TouchableOpacity>
@@ -144,10 +160,15 @@ const styles = StyleSheet.create({
   statLabel: { fontFamily: fonts.medium, fontSize: 11, color: colors.textFaint, marginTop: 2 },
   divider: { width: 1, backgroundColor: colors.border },
   filters: { marginTop: 16, flexDirection: 'row', gap: 8 },
-  filterChip: { paddingVertical: 8, paddingHorizontal: 15, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-  filterChipActive: { paddingVertical: 8, paddingHorizontal: 15, borderRadius: radius.pill },
-  filterText: { fontFamily: fonts.semibold, fontSize: 12, color: 'rgba(243,241,234,0.6)' },
-  filterTextActive: { fontFamily: fonts.bold, fontSize: 12, color: colors.goldOnGoldText },
+  filterChip: { paddingVertical: 10, paddingHorizontal: 18, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  filterChipActive: { paddingVertical: 10, paddingHorizontal: 18, borderRadius: radius.pill },
+  filterText: { fontFamily: fonts.semibold, fontSize: 14, color: 'rgba(243,241,234,0.6)' },
+  filterTextActive: { fontFamily: fonts.bold, fontSize: 14, color: colors.goldOnGoldText },
+  planTag: {
+    flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', marginTop: 5,
+    paddingVertical: 2, paddingHorizontal: 7, borderRadius: 999, backgroundColor: colors.surfaceGoldTint,
+  },
+  planTagText: { fontFamily: fonts.bold, fontSize: 11, color: colors.gold },
   empty: { marginTop: 30, textAlign: 'center', fontFamily: fonts.medium, fontSize: 14, color: colors.textFaint },
   row: {
     flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 15,
@@ -157,8 +178,8 @@ const styles = StyleSheet.create({
     width: 44, height: 44, borderRadius: 13, backgroundColor: colors.surfaceGoldTint,
     borderWidth: 1, borderColor: 'rgba(212,175,55,0.25)', alignItems: 'center', justifyContent: 'center',
   },
-  rowTitle: { fontFamily: fonts.bold, fontSize: 14, color: colors.text },
-  rowMeta: { fontFamily: fonts.medium, fontSize: 12, color: colors.textFaint, marginTop: 2 },
+  rowTitle: { fontFamily: fonts.bold, fontSize: 15, color: colors.text },
+  rowMeta: { fontFamily: fonts.medium, fontSize: 13, color: colors.textFaint, marginTop: 2 },
   rowPrice: { fontFamily: fonts.bold, fontSize: 14, color: colors.text },
   rowStatus: { fontFamily: fonts.semibold, fontSize: 11, color: colors.success, marginTop: 2 },
 });

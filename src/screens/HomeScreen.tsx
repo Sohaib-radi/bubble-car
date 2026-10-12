@@ -5,20 +5,33 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { colors, fonts, radius, gradients } from '../theme';
+import { colors, fonts, gradients } from '../theme';
 import BottomNav, { NavKey } from '../components/BottomNav';
 import LanguageModal from '../components/LanguageModal';
+import PackageCard from '../components/PackageCard';
 import { supabase } from '../lib/supabase';
-import { SERVICE_KEYS, SERVICE_PRICES } from '../data/services';
+import {
+  ACTIVE_STATUSES,
+  Car,
+  CAR_SELECT,
+  carLabel,
+  fetchMyPackages,
+  fetchPackages,
+  localized,
+  UserPackage,
+} from '../lib/catalog';
+import { isPeriodKey, isoDate } from '../lib/settings';
 import { changeLanguageAndReload, LanguageCode } from '../i18n';
 
 type Upcoming = {
   id: string;
-  service_name: string;
+  pack_name_en: string | null;
+  pack_name_ar: string | null;
   booking_date: string;
-  booking_time: string;
+  booking_time: string | null;
   status: string;
-  cars: { name: string } | null;
+  user_package_id: string | null;
+  cars: Pick<Car, 'plate' | 'custom_label' | 'car_makes' | 'car_models'> | null;
 };
 
 function initialsOf(name: string) {
@@ -34,21 +47,28 @@ function localeFor(lang: string) {
 export default function HomeScreen({
   onNavigate,
   onBookWash,
+  onOpenPackages,
   onOpenBooking,
 }: {
   onNavigate: (k: NavKey) => void;
   onBookWash: () => void;
+  onOpenPackages: () => void;
   onOpenBooking: (id: string) => void;
 }) {
   const { t, i18n } = useTranslation();
-  const locale = localeFor(i18n.language);
+  const lang = i18n.language;
+  const locale = localeFor(lang);
   const [fullName, setFullName] = useState('');
   const [upcoming, setUpcoming] = useState<Upcoming | null>(null);
+  const [myPackages, setMyPackages] = useState<UserPackage[]>([]);
+  const [cars, setCars] = useState<Car[]>([]);
+  const [cheapestPackage, setCheapestPackage] = useState<number | null>(null);
+  const [loaded, setLoaded] = useState(false);
   const [languageModalVisible, setLanguageModalVisible] = useState(false);
 
-  const handleSelectLanguage = async (lang: LanguageCode) => {
+  const handleSelectLanguage = async (code: LanguageCode) => {
     setLanguageModalVisible(false);
-    await changeLanguageAndReload(lang);
+    await changeLanguageAndReload(code);
   };
 
   const greetingForNow = () => {
@@ -63,23 +83,39 @@ export default function HomeScreen({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', user.id).single();
-      if (profile) setFullName(profile.full_name);
+      const [profileRes, bookingsRes, myPackagesRes, carsRes, packagesRes] = await Promise.all([
+        supabase.from('profiles').select('full_name').eq('id', user.id).single(),
+        supabase
+          .from('bookings')
+          .select(
+            'id, pack_name_en, pack_name_ar, booking_date, booking_time, status, user_package_id, cars(plate, custom_label, car_makes(name), car_models(name))'
+          )
+          .eq('user_id', user.id)
+          .gte('booking_date', isoDate(new Date()))
+          .in('status', ACTIVE_STATUSES)
+          .order('booking_date', { ascending: true })
+          .limit(1)
+          .returns<Upcoming[]>(),
+        fetchMyPackages(user.id),
+        supabase.from('cars').select(CAR_SELECT).eq('owner_id', user.id).returns<Car[]>(),
+        fetchPackages(),
+      ]);
 
-      const today = new Date().toISOString().split('T')[0];
-      const { data: bookings } = await supabase
-        .from('bookings')
-        .select('id, service_name, booking_date, booking_time, status, cars(name)')
-        .eq('user_id', user.id)
-        .gte('booking_date', today)
-        .in('status', ['pending', 'confirmed'])
-        .order('booking_date', { ascending: true })
-        .order('booking_time', { ascending: true })
-        .limit(1)
-        .returns<Upcoming[]>();
-      if (bookings && bookings.length > 0) setUpcoming(bookings[0]);
+      if (profileRes.data) setFullName(profileRes.data.full_name);
+      setUpcoming(bookingsRes.data?.[0] ?? null);
+      setMyPackages(myPackagesRes.userPackages);
+      setCars(carsRes.data ?? []);
+      const prices = packagesRes.packages.flatMap((p) => Object.values(p.prices)).filter((p): p is number => typeof p === 'number');
+      setCheapestPackage(prices.length ? Math.min(...prices) : null);
+      setLoaded(true);
     })();
   }, []);
+
+  const shownPackages = myPackages.filter((up) => up.status === 'active' || up.status === 'pending_review');
+  const carText = (carId: string) => {
+    const car = cars.find((c) => c.id === carId);
+    return car ? `${carLabel(car)} · ${car.plate}` : undefined;
+  };
 
   return (
     <View style={styles.root}>
@@ -89,37 +125,50 @@ export default function HomeScreen({
           <View style={styles.header}>
             <View style={{ flex: 1 }}>
               <Text style={styles.greeting}>{greetingForNow()}</Text>
-              <Text style={styles.name}>{fullName || '...'}</Text>
+              <Text style={styles.name}>{fullName || ' '}</Text>
             </View>
-            <TouchableOpacity style={styles.iconBtn} onPress={() => setLanguageModalVisible(true)}>
+            <TouchableOpacity style={styles.iconBtn} onPress={() => setLanguageModalVisible(true)} accessibilityLabel={t('profile.menu.language')}>
               <Feather name="globe" size={20} color="#cfcdc6" />
             </TouchableOpacity>
-            <View style={styles.avatar}>
+            <TouchableOpacity style={styles.avatar} onPress={() => onNavigate('Profile')}>
               <Text style={styles.avatarText}>{fullName ? initialsOf(fullName) : ''}</Text>
-            </View>
+            </TouchableOpacity>
           </View>
 
-          <LinearGradient
-            colors={gradients.goldCard}
-            locations={gradients.goldCardLocations}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.vipCard}
-          >
-            <View style={styles.vipTop}>
-              <View>
-                <Text style={styles.vipLabel}>{t('home.vip.member')}</Text>
-                <Text style={styles.vipPoints}>1,240 <Text style={styles.vipPointsUnit}>{t('home.vip.pts')}</Text></Text>
-              </View>
-              <View style={styles.goldBadge}><Text style={styles.goldBadgeText}>{t('home.vip.gold')}</Text></View>
-            </View>
-            <View style={styles.progressTrack}>
-              <View style={[styles.progressFill, { width: '72%' }]} />
-            </View>
-            <Text style={styles.progressCaption}>
-              {t('home.vip.progressCaption', { points: 260, service: t('common.services.exterior.name') })}
-            </Text>
-          </LinearGradient>
+          {/* My package — or an invitation to get one */}
+          {shownPackages.length > 0
+            ? shownPackages.map((up) => (
+                <PackageCard
+                  key={up.id}
+                  userPackage={up}
+                  carText={carText(up.car_id)}
+                  actionLabel={up.status === 'active' ? t('home.usePackageWash') : undefined}
+                  onAction={onBookWash}
+                />
+              ))
+            : loaded && (
+                <TouchableOpacity activeOpacity={0.9} onPress={onOpenPackages}>
+                  <LinearGradient
+                    colors={gradients.goldCard}
+                    locations={gradients.goldCardLocations}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.promo}
+                  >
+                    <Feather name="gift" size={26} color={colors.goldOnGoldText} />
+                    <Text style={styles.promoTitle}>{t('home.promoTitle')}</Text>
+                    <Text style={styles.promoText}>
+                      {cheapestPackage !== null
+                        ? t('home.promoFrom', { price: t('common.egp', { price: cheapestPackage }) })
+                        : t('home.promoText')}
+                    </Text>
+                    <View style={styles.promoBtn}>
+                      <Text style={styles.promoBtnText}>{t('home.seePackages')}</Text>
+                      <Feather name="arrow-right" size={16} color={colors.goldOnGoldText} />
+                    </View>
+                  </LinearGradient>
+                </TouchableOpacity>
+              )}
 
           <TouchableOpacity style={styles.bookRow} onPress={onBookWash}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 13 }}>
@@ -134,51 +183,49 @@ export default function HomeScreen({
           <View>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionLabel}>{t('home.upcoming')}</Text>
-              <Text style={styles.seeAll} onPress={() => onNavigate('History')}>{t('home.seeAll')}</Text>
+              <Text style={styles.seeAll} onPress={() => onNavigate('History')}>
+                {t('home.seeAll')}
+              </Text>
             </View>
             {upcoming ? (
               <TouchableOpacity style={styles.upcomingCard} onPress={() => onOpenBooking(upcoming.id)}>
                 <View style={styles.dateTile}>
-                  <Text style={styles.dateDay}>{new Date(upcoming.booking_date).getDate()}</Text>
+                  <Text style={styles.dateDay}>{new Date(`${upcoming.booking_date}T00:00:00`).getDate()}</Text>
                   <Text style={styles.dateMonth}>
-                    {new Date(upcoming.booking_date).toLocaleDateString(locale, { month: 'short' }).toUpperCase()}
+                    {new Date(`${upcoming.booking_date}T00:00:00`).toLocaleDateString(locale, { month: 'short' }).toUpperCase()}
                   </Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.upcomingTitle}>{upcoming.service_name}</Text>
+                  <Text style={styles.upcomingTitle}>{localized(lang, upcoming.pack_name_en, upcoming.pack_name_ar)}</Text>
                   <Text style={styles.upcomingMeta}>
-                    {t('home.upcomingMeta', {
-                      weekday: new Date(upcoming.booking_date).toLocaleDateString(locale, { weekday: 'short' }),
-                      time: upcoming.booking_time,
-                      car: upcoming.cars?.name ?? 'Car',
-                    })}
+                    {new Date(`${upcoming.booking_date}T00:00:00`).toLocaleDateString(locale, { weekday: 'short' })}
+                    {' · '}
+                    {isPeriodKey(upcoming.booking_time) ? t(`book.periods.${upcoming.booking_time}`) : upcoming.booking_time || t('book.anyTime')}
+                    {' · '}
+                    {carLabel(upcoming.cars)}
                   </Text>
+                  <View style={{ flexDirection: 'row', gap: 6, marginTop: 7 }}>
+                    <View style={styles.statusPill}>
+                      <Text style={styles.statusPillText}>{t(`common.status.${upcoming.status}`)}</Text>
+                    </View>
+                    {upcoming.user_package_id && (
+                      <View style={[styles.statusPill, styles.planPill]}>
+                        <Text style={[styles.statusPillText, { color: colors.gold }]}>{t('history.planTag')}</Text>
+                      </View>
+                    )}
+                  </View>
                 </View>
-                <View style={styles.confirmedPill}>
-                  <Text style={styles.confirmedPillText}>{t(`common.status.${upcoming.status}`)}</Text>
-                </View>
+                <Feather name="chevron-right" size={18} color={colors.textFaint} />
               </TouchableOpacity>
             ) : (
-              <View style={styles.upcomingCard}>
-                <Text style={styles.upcomingMeta}>{t('home.noUpcoming')}</Text>
+              <View style={styles.emptyCard}>
+                <Feather name="calendar" size={22} color={colors.textFaint} />
+                <Text style={styles.emptyText}>{t('home.noUpcoming')}</Text>
+                <Text style={styles.emptyLink} onPress={onBookWash}>
+                  {t('home.bookAWash')}
+                </Text>
               </View>
             )}
-          </View>
-
-          <View>
-            <Text style={[styles.sectionLabel, { marginBottom: 11 }]}>{t('home.ourServices')}</Text>
-            <View style={styles.servicesGrid}>
-              {SERVICE_KEYS.map((key) => (
-                <View key={key} style={styles.serviceCard}>
-                  <Text style={styles.serviceName}>{t(`common.services.${key}.name`)}</Text>
-                  <Text style={styles.servicePrice}>
-                    {key === 'accessories'
-                      ? t('common.fromEgp', { price: SERVICE_PRICES[key] })
-                      : t('common.egp', { price: SERVICE_PRICES[key] })}
-                  </Text>
-                </View>
-              ))}
-            </View>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -196,10 +243,10 @@ export default function HomeScreen({
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   safe: { flex: 1 },
-  scroll: { paddingHorizontal: 22, paddingTop: 8, paddingBottom: 110, gap: 17 },
+  scroll: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 120, gap: 20 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 11 },
-  greeting: { fontFamily: fonts.medium, fontSize: 13, color: colors.textFaint },
-  name: { fontFamily: fonts.bold, fontSize: 21, color: colors.text, marginTop: 2 },
+  greeting: { fontFamily: fonts.medium, fontSize: 14, color: colors.textFaint },
+  name: { fontFamily: fonts.bold, fontSize: 22, color: colors.text, marginTop: 2 },
   iconBtn: {
     width: 44, height: 44, borderRadius: 13, backgroundColor: colors.surface,
     borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center',
@@ -209,38 +256,39 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', backgroundColor: '#1c1c20',
   },
   avatarText: { color: colors.gold, fontFamily: fonts.bold, fontSize: 15 },
-  vipCard: { borderRadius: 22, padding: 20 },
-  vipTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  vipLabel: { fontFamily: fonts.extrabold, fontSize: 11, letterSpacing: 3, color: 'rgba(26,20,7,0.65)' },
-  vipPoints: { fontFamily: fonts.extrabold, fontSize: 30, color: colors.goldOnGoldText, marginTop: 8 },
-  vipPointsUnit: { fontSize: 14, fontFamily: fonts.bold },
-  goldBadge: { borderWidth: 1, borderColor: 'rgba(26,20,7,0.3)', borderRadius: 8, paddingVertical: 5, paddingHorizontal: 9 },
-  goldBadgeText: { fontFamily: fonts.bold, fontSize: 11, letterSpacing: 1.2, color: 'rgba(26,20,7,0.55)' },
-  progressTrack: { marginTop: 18, height: 7, borderRadius: 4, backgroundColor: 'rgba(26,20,7,0.22)', overflow: 'hidden' },
-  progressFill: { height: '100%', backgroundColor: '#1a1407', borderRadius: 4 },
-  progressCaption: { marginTop: 9, fontFamily: fonts.semibold, fontSize: 12, color: 'rgba(26,20,7,0.7)' },
-  bookRow: {
-    height: 62, borderRadius: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.borderGoldStrong,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20,
+  promo: { borderRadius: 22, padding: 20, gap: 6 },
+  promoTitle: { fontFamily: fonts.extrabold, fontSize: 20, color: colors.goldOnGoldText, marginTop: 6 },
+  promoText: { fontFamily: fonts.semibold, fontSize: 14, color: 'rgba(26,20,7,0.75)' },
+  promoBtn: {
+    marginTop: 10, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingVertical: 10, paddingHorizontal: 16, borderRadius: 12, backgroundColor: 'rgba(26,20,7,0.14)',
   },
-  plusIcon: { width: 38, height: 38, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  promoBtnText: { fontFamily: fonts.extrabold, fontSize: 14, color: colors.goldOnGoldText },
+  bookRow: {
+    height: 64, borderRadius: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.borderGoldStrong,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18,
+  },
+  plusIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   bookText: { fontFamily: fonts.bold, fontSize: 16, color: colors.text },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 11 },
-  sectionLabel: { fontFamily: fonts.bold, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase', color: colors.label },
-  seeAll: { fontFamily: fonts.semibold, fontSize: 12, color: colors.gold },
+  sectionLabel: { fontFamily: fonts.bold, fontSize: 12, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.label },
+  seeAll: { fontFamily: fonts.semibold, fontSize: 13, color: colors.gold, padding: 4 },
   upcomingCard: {
     backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.borderSoft, borderRadius: 18,
     padding: 15, flexDirection: 'row', alignItems: 'center', gap: 14,
   },
-  dateTile: { width: 50, height: 50, borderRadius: 14, backgroundColor: '#c9a24b', alignItems: 'center', justifyContent: 'center' },
-  dateDay: { fontFamily: fonts.extrabold, fontSize: 18, color: colors.goldOnGoldText, lineHeight: 20 },
-  dateMonth: { fontFamily: fonts.bold, fontSize: 9, letterSpacing: 1, color: colors.goldOnGoldText },
-  upcomingTitle: { fontFamily: fonts.bold, fontSize: 15, color: colors.text },
-  upcomingMeta: { fontFamily: fonts.medium, fontSize: 12, color: colors.textFaint, marginTop: 3 },
-  confirmedPill: { backgroundColor: 'rgba(122,209,154,0.12)', borderRadius: 999, paddingVertical: 6, paddingHorizontal: 10 },
-  confirmedPillText: { fontFamily: fonts.bold, fontSize: 10, letterSpacing: 0.6, textTransform: 'uppercase', color: colors.success },
-  servicesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  serviceCard: { width: '48.5%', backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.borderSoft, borderRadius: 15, padding: 14 },
-  serviceName: { fontFamily: fonts.bold, fontSize: 14, color: colors.text },
-  servicePrice: { fontFamily: fonts.bold, fontSize: 13, color: colors.gold, marginTop: 5 },
+  dateTile: { width: 54, height: 58, borderRadius: 14, backgroundColor: '#c9a24b', alignItems: 'center', justifyContent: 'center' },
+  dateDay: { fontFamily: fonts.extrabold, fontSize: 20, color: colors.goldOnGoldText, lineHeight: 23 },
+  dateMonth: { fontFamily: fonts.bold, fontSize: 10, letterSpacing: 1, color: colors.goldOnGoldText },
+  upcomingTitle: { fontFamily: fonts.bold, fontSize: 16, color: colors.text },
+  upcomingMeta: { fontFamily: fonts.medium, fontSize: 13, color: colors.textFaint, marginTop: 3 },
+  statusPill: { backgroundColor: 'rgba(122,209,154,0.12)', borderRadius: 999, paddingVertical: 4, paddingHorizontal: 9 },
+  planPill: { backgroundColor: colors.surfaceGoldTint },
+  statusPillText: { fontFamily: fonts.bold, fontSize: 11, color: colors.success },
+  emptyCard: {
+    alignItems: 'center', gap: 8, paddingVertical: 24, borderRadius: 18,
+    borderWidth: 1, borderColor: colors.borderSoft, borderStyle: 'dashed',
+  },
+  emptyText: { fontFamily: fonts.medium, fontSize: 14, color: colors.textFaint },
+  emptyLink: { fontFamily: fonts.bold, fontSize: 14, color: colors.gold, padding: 4 },
 });

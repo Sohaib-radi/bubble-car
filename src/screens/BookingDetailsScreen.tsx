@@ -6,23 +6,36 @@ import { Feather } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { colors, fonts, radius } from '../theme';
 import { supabase } from '../lib/supabase';
-import { ServiceKey } from '../data/services';
+import { Car, carLabel, localized } from '../lib/catalog';
+import { isPeriodKey } from '../lib/settings';
 
 type Booking = {
   id: string;
-  service_key: ServiceKey;
+  pack_name_en: string | null;
+  pack_name_ar: string | null;
+  payment_method_label_en: string | null;
+  payment_method_label_ar: string | null;
   price: number;
   booking_date: string;
-  booking_time: string;
+  booking_time: string | null;
   status: string;
-  cars: { name: string; plate: string } | null;
+  user_package_id: string | null;
+  user_packages: { package_name_en: string; package_name_ar: string } | null;
+  cars: Pick<Car, 'plate' | 'custom_label' | 'car_makes' | 'car_models'> | null;
 };
 
 const STATUS_COLOR: Record<string, string> = {
-  pending: colors.gold,
+  pending_review: colors.gold,
+  awaiting_payment_proof: colors.gold,
+  draft: colors.gold,
   confirmed: colors.success,
+  arrived: colors.success,
+  in_progress: colors.success,
   completed: colors.success,
   cancelled: colors.danger,
+  rejected: colors.danger,
+  no_show: colors.danger,
+  expired: colors.danger,
 };
 
 function localeFor(lang: string) {
@@ -36,13 +49,15 @@ export default function BookingDetailsScreen({ bookingId, onBack }: { bookingId:
   const [loading, setLoading] = useState(true);
 
   const formatDate = (iso: string) =>
-    new Date(iso).toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' });
+    new Date(`${iso}T00:00:00`).toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' });
 
   useEffect(() => {
     (async () => {
       const { data } = await supabase
         .from('bookings')
-        .select('id, service_key, price, booking_date, booking_time, status, cars(name, plate)')
+        .select(
+          'id, pack_name_en, pack_name_ar, payment_method_label_en, payment_method_label_ar, price, booking_date, booking_time, status, user_package_id, user_packages(package_name_en, package_name_ar), cars(plate, custom_label, car_makes(name), car_models(name))'
+        )
         .eq('id', bookingId)
         .single();
       setBooking((data as unknown as Booking) ?? null);
@@ -68,12 +83,21 @@ export default function BookingDetailsScreen({ bookingId, onBack }: { bookingId:
           <View style={styles.summaryCard}>
             <View style={styles.summaryTop}>
               <View>
-                <Text style={styles.summaryTitle}>{t(`common.services.${booking.service_key}.name`)}</Text>
+                <Text style={styles.summaryTitle}>{localized(i18n.language, booking.pack_name_en, booking.pack_name_ar)}</Text>
                 <Text style={styles.summaryMeta}>
-                  {booking.cars?.name ?? 'Car'}{booking.cars?.plate ? ` · ${booking.cars.plate}` : ''}
+                  {carLabel(booking.cars)}{booking.cars?.plate ? ` · ${booking.cars.plate}` : ''}
+                  {booking.user_packages
+                    ? `\n${t('bookingDetails.paidWith', {
+                        name: localized(i18n.language, booking.user_packages.package_name_en, booking.user_packages.package_name_ar),
+                      })}`
+                    : booking.payment_method_label_en
+                      ? `\n${localized(i18n.language, booking.payment_method_label_en, booking.payment_method_label_ar)}`
+                      : ''}
                 </Text>
               </View>
-              <Text style={styles.summaryPrice}>{t('common.egp', { price: booking.price })}</Text>
+              <Text style={[styles.summaryPrice, booking.user_package_id && { color: colors.success }]}>
+                {booking.user_package_id ? t('book.included') : t('common.egp', { price: booking.price })}
+              </Text>
             </View>
             <View style={styles.summaryRow}>
               <View>
@@ -82,7 +106,11 @@ export default function BookingDetailsScreen({ bookingId, onBack }: { bookingId:
               </View>
               <View>
                 <Text style={styles.summaryLabel}>{t('bookingDetails.time')}</Text>
-                <Text style={styles.summaryValue}>{booking.booking_time}</Text>
+                <Text style={styles.summaryValue}>
+                  {isPeriodKey(booking.booking_time)
+                    ? t(`book.periods.${booking.booking_time}`)
+                    : booking.booking_time || t('book.anyTime')}
+                </Text>
               </View>
               <View>
                 <Text style={styles.summaryLabel}>{t('bookingDetails.status')}</Text>

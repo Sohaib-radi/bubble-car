@@ -10,16 +10,38 @@
       "accessories": { "name": "Accessories", "desc": "Mats, polish, fragrance & more" }
     },
     "status": {
-      "pending": "Pending",
+      "pending_review": "Pending review",
+      "awaiting_payment_proof": "Awaiting payment",
+      "draft": "Draft",
       "confirmed": "Confirmed",
+      "arrived": "Arrived",
+      "in_progress": "In progress",
       "completed": "Completed",
-      "cancelled": "Cancelled"
+      "cancelled": "Cancelled",
+      "rejected": "Rejected",
+      "no_show": "No show",
+      "expired": "Expired"
     },
     "nav": {
       "home": "Home",
       "book": "Book",
       "history": "History",
-      "profile": "Profile"
+      "profile": "Me",
+      "bookings": "Bookings",
+      "packages": "Packages"
+    },
+    "carTypes": {
+      "sedan": "Sedan",
+      "hatchback": "Hatchback",
+      "suv": "SUV",
+      "pickup": "Pickup",
+      "van": "Van",
+      "other": "Other"
+    },
+    "back": "Back",
+    "errors": {
+      "generic": "Something went wrong. Please try again in a moment.",
+      "network": "No connection. Check your internet and try again."
     }
   },
   "splash": {
@@ -76,15 +98,16 @@
     "bookAWash": "Book a wash",
     "upcoming": "Upcoming",
     "seeAll": "See all",
-    "noUpcoming": "No upcoming bookings.",
+    "noUpcoming": "No wash planned yet.",
     "upcomingMeta": "{{weekday}} · {{time}} — {{car}}",
     "ourServices": "Our services",
-    "vip": {
-      "member": "VIP MEMBER",
-      "pts": "pts",
-      "gold": "GOLD",
-      "progressCaption": "{{points}} pts to a free {{service}}"
-    }
+    "packagesCta": "Monthly packages",
+    "packagesCtaSub": "Save with a monthly wash bundle",
+    "promoTitle": "Save every month",
+    "promoText": "Get several washes at a better price with a monthly package.",
+    "promoFrom": "Monthly packages from {{price}}",
+    "seePackages": "See packages",
+    "usePackageWash": "Book with my package"
   },
   "book": {
     "title": "Book a wash",
@@ -93,62 +116,167 @@
     "date": "Date",
     "time": "Time",
     "noVehicles": "No vehicles yet — tap + to add one.",
-    "carNamePlaceholder": "Car name (e.g. Mercedes C300)",
     "platePlaceholder": "Plate number",
     "saveVehicle": "Save vehicle",
     "saving": "Saving…",
     "confirmBooking": "Confirm booking",
     "booking": "Booking…",
-    "total": "Total"
+    "total": "Total",
+    "make": "Brand",
+    "model": "Model",
+    "payment": "Payment method",
+    "selectCarForPrice": "Select a vehicle to see prices.",
+    "referencePlaceholder": "Transaction code (after you transfer)",
+    "usePackage": "Use my package",
+    "usePackageMeta": "{{name}} · {{count}} left for this service",
+    "included": "In package",
+    "stepTitles": {
+      "1": "Choose a service",
+      "2": "When?",
+      "3": "Confirm"
+    },
+    "stepOf": "Step {{step}} of {{total}}",
+    "yourCar": "Your car",
+    "addCar": "Add a car",
+    "plate": "Plate number",
+    "planHint": "Services marked “In package” are already paid with your package.",
+    "chooseService": "Choose a service",
+    "noPriceForCar": "Not available",
+    "pickService": "Pick a service",
+    "yourChoice": "Your choice",
+    "continue": "Continue",
+    "today": "Today",
+    "tomorrow": "Tomorrow",
+    "closed": "Closed",
+    "full": "Full",
+    "dayFullNotice": "This day is fully booked. You can still send your request — you may have to wait a bit longer when you arrive, or choose another day.",
+    "planNotValidForDate": "Your package ends before this date. Choose an earlier day, or go back and pay for this wash.",
+    "preferredTime": "Preferred time",
+    "optional": "optional",
+    "periods": {
+      "morning": "Morning",
+      "afternoon": "Afternoon",
+      "evening": "Evening"
+    },
+    "anyTime": "Any time",
+    "noPreferenceHint": "No preference? No problem — come any time that day.",
+    "edit": "Edit",
+    "coveredTitle": "Covered by your package",
+    "coveredText": "{{name}} · {{count}} left for this service after this booking. Already paid with your package.",
+    "planSheet": {
+      "title": "Use 1 wash from your package?",
+      "subtitle": "This wash will be taken from your package — it’s already paid.",
+      "service": "Service",
+      "car": "Car",
+      "plan": "Package",
+      "after": "After this booking: {{left}} of {{total}} {{name}} left",
+      "confirm": "Yes, use my package",
+      "payInstead": "No, pay {{price}} instead"
+    },
+    "errors": {
+      "periodBlocked": "This time is closed for booking. Please choose another time.",
+      "dateInPast": "This date has already passed. Please choose another day."
+    },
+    "closedHoursNotice": "Closed on this day: {{hours}}. Please plan your visit outside these hours.",
+    "partlyClosed": "Closed {{hours}}",
+    "leftCount": "{{count}} left"
   },
   "confirmed": {
-    "title": "Booking confirmed",
-    "subtitle": "Your slot is reserved. We'll notify you before your wash begins.",
+    "title": "Booking received!",
+    "subtitle": "We'll review it and confirm shortly.",
     "steps": {
-      "booked": "Booked",
-      "vehiclePrep": "Vehicle prep",
-      "inProgress": "In progress",
-      "readyForPickup": "Ready for pickup"
+      "received": "Request received",
+      "reviewed": "Confirmed by our team",
+      "washed": "Your car shines"
     },
     "date": "Date",
     "time": "Time",
     "ref": "Ref",
-    "done": "Done"
+    "done": "Done",
+    "planNote": "Paid with your package · {{count}} left for this service",
+    "viewBookings": "My bookings"
   },
   "history": {
-    "title": "History",
+    "title": "My bookings",
     "totalWashes": "Total washes",
     "spentWithUs": "Spent with us",
     "filters": {
-      "all": "All",
-      "thisMonth": "This month",
-      "fullDetail": "Full Detail"
+      "upcoming": "Upcoming",
+      "past": "Past"
     },
-    "noBookings": "No bookings yet."
+    "noBookings": "No past bookings yet.",
+    "noUpcoming": "No upcoming bookings.",
+    "planTag": "Package"
   },
   "profile": {
     "menu": {
       "myCars": "My cars",
-      "savedAddresses": "Saved addresses",
-      "paymentMethods": "Payment methods",
-      "notifications": "Notifications",
-      "language": "Language"
+      "language": "Language",
+      "mySubscription": "My subscription"
     },
     "languageEnglish": "English",
     "languageArabic": "Arabic",
     "logout": "Log out",
     "washes": "Washes",
-    "points": "Points",
     "member": "Member",
     "vip": "VIP",
     "chooseLanguage": "Choose language",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "noSubscription": "None",
+    "noCars": "You haven't added a car yet. You can add one when you book a wash."
   },
   "bookingDetails": {
     "title": "Booking details",
     "notFound": "Booking not found.",
     "date": "Date",
     "time": "Time",
-    "status": "Status"
+    "status": "Status",
+    "paidWith": "Paid with {{name}}"
+  },
+  "packages": {
+    "title": "Packages",
+    "myPackages": "My packages",
+    "available": "Available packages",
+    "noPackages": "No packages available right now.",
+    "washes": "{{count}}× {{name}}",
+    "washesLeft": "{{remaining}}/{{quantity}} left · {{name}}",
+    "validUntil": "Valid until {{date}}",
+    "validity": "Valid for 1 month after activation, for one vehicle.",
+    "pendingNote": "We will activate it after confirming your payment.",
+    "vehicle": "For which vehicle?",
+    "addCarHint": "Add a vehicle from “Book a wash” first.",
+    "payment": "Payment method",
+    "referencePlaceholder": "Transaction code (after you transfer)",
+    "buy": "Buy package",
+    "buying": "Sending…",
+    "bought": "We'll activate your package as soon as we confirm your payment.",
+    "save": "Save {{amount}}",
+    "notForThisCar": "Not available for this car type",
+    "cancelRequest": "Cancel request",
+    "status": {
+      "pending_review": "Pending review",
+      "active": "Active",
+      "rejected": "Rejected",
+      "cancelled": "Cancelled",
+      "expired": "Expired"
+    },
+    "errors": {
+      "noWashesLeft": "No washes left for this service in your package.",
+      "notActive": "This package is not active.",
+      "expiresBefore": "Your package expires before this date.",
+      "notForThisCar": "This package belongs to another vehicle.",
+      "noPrice": "This package is not available for your car type.",
+      "unavailable": "This package is no longer available."
+    },
+    "myPackage": "MY PACKAGE",
+    "ofTotal": "of {{total}} left",
+    "savePct": "Save {{pct}}%",
+    "perMonth": "/ month",
+    "insteadOf": "instead of {{price}}",
+    "perkOneCar": "For one car",
+    "perkOneMonth": "Valid 1 month",
+    "choose": "Choose this package",
+    "sentTitle": "Request sent!",
+    "requestFor": "Request · {{price}}"
   }
 }

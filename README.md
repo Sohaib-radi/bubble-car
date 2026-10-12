@@ -59,3 +59,7 @@ react-native/
 - The phone mockup frame, status bar, and notch from the design are NOT included —
   those were mockup-only chrome. Real devices render their own status bar
   (`expo-status-bar` is already wired with `style="light"`).
+
+## Project notes
+
+Architecture, data model, feature decisions and the work log for both this app and the manager dashboard live in [`../bubble-car-dashboard/docs/PROJECT.md`](../bubble-car-dashboard/docs/PROJECT.md).

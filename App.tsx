@@ -22,11 +22,12 @@ import SplashScreen from './src/screens/SplashScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
 import HomeScreen from './src/screens/HomeScreen';
-import BookScreen from './src/screens/BookScreen';
+import BookScreen, { BookingSummary } from './src/screens/BookScreen';
 import ConfirmedScreen from './src/screens/ConfirmedScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import BookingDetailsScreen from './src/screens/BookingDetailsScreen';
+import PackagesScreen from './src/screens/PackagesScreen';
 import { NavKey } from './src/components/BottomNav';
 import { colors } from './src/theme';
 import { supabase } from './src/lib/supabase';
@@ -42,6 +43,7 @@ export default function App() {
   const [languageReady, setLanguageReady] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
   const [bookingDetailsFrom, setBookingDetailsFrom] = useState<Route>('Home');
+  const [lastBooking, setLastBooking] = useState<BookingSummary | null>(null);
 
   const [fontsLoaded] = useFonts(
     I18nManager.isRTL
@@ -104,10 +106,26 @@ export default function App() {
           <RegisterScreen onBack={() => setRoute('Splash')} onCreateAccount={() => setRoute('Home')} onSignIn={() => setRoute('Login')} />
         )}
         {route === 'Home' && (
-          <HomeScreen onNavigate={goTab} onBookWash={() => setRoute('Book')} onOpenBooking={(id) => openBooking(id, 'Home')} />
+          <HomeScreen
+            onNavigate={goTab}
+            onBookWash={() => setRoute('Book')}
+            onOpenPackages={() => setRoute('Packages')}
+            onOpenBooking={(id) => openBooking(id, 'Home')}
+          />
         )}
-        {route === 'Book' && <BookScreen onBack={() => setRoute('Home')} onConfirm={() => setRoute('Confirmed')} />}
-        {route === 'Confirmed' && <ConfirmedScreen onDone={() => setRoute('Home')} />}
+        {route === 'Book' && (
+          <BookScreen
+            onBack={() => setRoute('Home')}
+            onConfirm={(summary) => {
+              setLastBooking(summary);
+              setRoute('Confirmed');
+            }}
+          />
+        )}
+        {route === 'Packages' && <PackagesScreen onNavigate={goTab} />}
+        {route === 'Confirmed' && lastBooking && (
+          <ConfirmedScreen summary={lastBooking} onDone={() => setRoute('Home')} onViewBookings={() => setRoute('History')} />
+        )}
         {route === 'History' && <HistoryScreen onNavigate={goTab} onOpenBooking={(id) => openBooking(id, 'History')} />}
         {route === 'Profile' && <ProfileScreen onNavigate={goTab} onLogout={() => setRoute('Splash')} />}
         {route === 'BookingDetails' && selectedBookingId && (

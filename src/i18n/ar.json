@@ -10,16 +10,38 @@
       "accessories": { "name": "إكسسوارات", "desc": "دواسات، تلميع، معطرات والمزيد" }
     },
     "status": {
-      "pending": "قيد الانتظار",
+      "pending_review": "قيد المراجعة",
+      "awaiting_payment_proof": "بانتظار الدفع",
+      "draft": "مسودة",
       "confirmed": "مؤكد",
+      "arrived": "وصل",
+      "in_progress": "قيد التنفيذ",
       "completed": "مكتمل",
-      "cancelled": "ملغى"
+      "cancelled": "ملغي",
+      "rejected": "مرفوض",
+      "no_show": "لم يحضر",
+      "expired": "منتهي"
     },
     "nav": {
       "home": "الرئيسية",
-      "book": "حجز",
+      "book": "احجز",
       "history": "السجل",
-      "profile": "الملف الشخصي"
+      "profile": "حسابي",
+      "bookings": "حجوزاتي",
+      "packages": "الاشتراكات"
+    },
+    "carTypes": {
+      "sedan": "سيدان",
+      "hatchback": "هاتشباك",
+      "suv": "دفع رباعي",
+      "pickup": "بيك أب",
+      "van": "فان",
+      "other": "أخرى"
+    },
+    "back": "رجوع",
+    "errors": {
+      "generic": "حدث خطأ ما. حاول مرة أخرى بعد قليل.",
+      "network": "لا يوجد اتصال. تحقق من الإنترنت وحاول مرة أخرى."
     }
   },
   "splash": {
@@ -76,15 +98,16 @@
     "bookAWash": "احجز غسلة",
     "upcoming": "القادم",
     "seeAll": "عرض الكل",
-    "noUpcoming": "لا توجد حجوزات قادمة.",
+    "noUpcoming": "لا يوجد غسيل مخطط بعد.",
     "upcomingMeta": "{{weekday}} · {{time}} — {{car}}",
     "ourServices": "خدماتنا",
-    "vip": {
-      "member": "عضو VIP",
-      "pts": "نقطة",
-      "gold": "ذهبي",
-      "progressCaption": "{{points}} نقطة حتى تحصل على {{service}} مجانًا"
-    }
+    "packagesCta": "الاشتراكات الشهرية",
+    "packagesCtaSub": "وفّر مع اشتراك غسيل شهري",
+    "promoTitle": "وفّر كل شهر",
+    "promoText": "احصل على عدة غسلات بسعر أفضل مع اشتراك شهري.",
+    "promoFrom": "اشتراكات شهرية تبدأ من {{price}}",
+    "seePackages": "عرض الاشتراكات",
+    "usePackageWash": "احجز من اشتراكي"
   },
   "book": {
     "title": "احجز غسلة",
@@ -93,62 +116,167 @@
     "date": "التاريخ",
     "time": "الوقت",
     "noVehicles": "لا توجد سيارات بعد — اضغط + لإضافة واحدة.",
-    "carNamePlaceholder": "اسم السيارة (مثال: مرسيدس C300)",
     "platePlaceholder": "رقم اللوحة",
     "saveVehicle": "حفظ السيارة",
     "saving": "جارٍ الحفظ…",
     "confirmBooking": "تأكيد الحجز",
     "booking": "جارٍ الحجز…",
-    "total": "الإجمالي"
+    "total": "الإجمالي",
+    "make": "الماركة",
+    "model": "الموديل",
+    "payment": "طريقة الدفع",
+    "selectCarForPrice": "اختر سيارة لعرض الأسعار.",
+    "referencePlaceholder": "كود العملية (بعد التحويل)",
+    "usePackage": "استخدم اشتراكي",
+    "usePackageMeta": "{{name}} · متبقي {{count}} لهذه الخدمة",
+    "included": "ضمن الاشتراك",
+    "stepTitles": {
+      "1": "اختر الخدمة",
+      "2": "متى؟",
+      "3": "تأكيد"
+    },
+    "stepOf": "الخطوة {{step}} من {{total}}",
+    "yourCar": "سيارتك",
+    "addCar": "أضف سيارة",
+    "plate": "رقم اللوحة",
+    "planHint": "الخدمات المعلّمة «ضمن الاشتراك» مدفوعة مسبقاً في اشتراكك.",
+    "chooseService": "اختر الخدمة",
+    "noPriceForCar": "غير متاح",
+    "pickService": "اختر خدمة",
+    "yourChoice": "اختيارك",
+    "continue": "متابعة",
+    "today": "اليوم",
+    "tomorrow": "غداً",
+    "closed": "مغلق",
+    "full": "ممتلئ",
+    "dayFullNotice": "هذا اليوم محجوز بالكامل. يمكنك إرسال طلبك رغم ذلك — قد تنتظر قليلاً عند وصولك، أو اختر يوماً آخر.",
+    "planNotValidForDate": "ينتهي اشتراكك قبل هذا التاريخ. اختر يوماً أقرب، أو ارجع وادفع ثمن هذه الغسلة.",
+    "preferredTime": "الوقت المفضل",
+    "optional": "اختياري",
+    "periods": {
+      "morning": "صباحاً",
+      "afternoon": "بعد الظهر",
+      "evening": "مساءً"
+    },
+    "anyTime": "أي وقت",
+    "noPreferenceHint": "لا تفضيل؟ لا مشكلة — تعال في أي وقت خلال اليوم.",
+    "edit": "تعديل",
+    "coveredTitle": "مشمول في اشتراكك",
+    "coveredText": "{{name}} · سيتبقى {{count}} لهذه الخدمة بعد هذا الحجز. مدفوعة مسبقاً ضمن اشتراكك.",
+    "planSheet": {
+      "title": "استخدام غسلة واحدة من اشتراكك؟",
+      "subtitle": "سيتم خصم هذه الغسلة من اشتراكك — مدفوعة مسبقاً.",
+      "service": "الخدمة",
+      "car": "السيارة",
+      "plan": "الاشتراك",
+      "after": "بعد هذا الحجز: يتبقى {{left}} من {{total}} {{name}}",
+      "confirm": "نعم، استخدم اشتراكي",
+      "payInstead": "لا، ادفع {{price}} بدلاً من ذلك"
+    },
+    "errors": {
+      "periodBlocked": "هذا الوقت مغلق للحجز. يرجى اختيار وقت آخر.",
+      "dateInPast": "هذا التاريخ قد مضى. يرجى اختيار يوم آخر."
+    },
+    "closedHoursNotice": "مغلق في هذا اليوم: {{hours}}. يرجى التخطيط لزيارتك خارج هذه الساعات.",
+    "partlyClosed": "مغلق {{hours}}",
+    "leftCount": "متبقي {{count}}"
   },
   "confirmed": {
-    "title": "تم تأكيد الحجز",
-    "subtitle": "تم حجز موعدك. سنُعلمك قبل بدء غسيل سيارتك.",
+    "title": "تم استلام حجزك!",
+    "subtitle": "سنراجعه ونؤكده قريباً.",
     "steps": {
-      "booked": "تم الحجز",
-      "vehiclePrep": "تجهيز السيارة",
-      "inProgress": "قيد التنفيذ",
-      "readyForPickup": "جاهزة للاستلام"
+      "received": "تم استلام الطلب",
+      "reviewed": "تأكيد من فريقنا",
+      "washed": "سيارتك تلمع"
     },
     "date": "التاريخ",
     "time": "الوقت",
     "ref": "الرقم المرجعي",
-    "done": "تم"
+    "done": "تم",
+    "planNote": "مدفوع من اشتراكك · متبقي {{count}} لهذه الخدمة",
+    "viewBookings": "حجوزاتي"
   },
   "history": {
-    "title": "السجل",
+    "title": "حجوزاتي",
     "totalWashes": "إجمالي الغسلات",
     "spentWithUs": "إجمالي الإنفاق",
     "filters": {
-      "all": "الكل",
-      "thisMonth": "هذا الشهر",
-      "fullDetail": "تنظيف شامل"
+      "upcoming": "القادمة",
+      "past": "السابقة"
     },
-    "noBookings": "لا توجد حجوزات بعد."
+    "noBookings": "لا توجد حجوزات سابقة بعد.",
+    "noUpcoming": "لا توجد حجوزات قادمة.",
+    "planTag": "اشتراك"
   },
   "profile": {
     "menu": {
       "myCars": "سياراتي",
-      "savedAddresses": "العناوين المحفوظة",
-      "paymentMethods": "طرق الدفع",
-      "notifications": "الإشعارات",
-      "language": "اللغة"
+      "language": "اللغة",
+      "mySubscription": "اشتراكي"
     },
     "languageEnglish": "الإنجليزية",
     "languageArabic": "العربية",
     "logout": "تسجيل الخروج",
     "washes": "الغسلات",
-    "points": "النقاط",
     "member": "عضو منذ",
     "vip": "VIP",
     "chooseLanguage": "اختر اللغة",
-    "cancel": "إلغاء"
+    "cancel": "إلغاء",
+    "noSubscription": "لا يوجد",
+    "noCars": "لم تضف أي سيارة بعد. يمكنك إضافة سيارة عند حجز غسلة."
   },
   "bookingDetails": {
     "title": "تفاصيل الحجز",
     "notFound": "الحجز غير موجود.",
     "date": "التاريخ",
     "time": "الوقت",
-    "status": "الحالة"
+    "status": "الحالة",
+    "paidWith": "مدفوع من {{name}}"
+  },
+  "packages": {
+    "title": "الاشتراكات",
+    "myPackages": "اشتراكاتي",
+    "available": "الاشتراكات المتاحة",
+    "noPackages": "لا توجد اشتراكات متاحة حالياً.",
+    "washes": "{{count}}× {{name}}",
+    "washesLeft": "متبقي {{remaining}}/{{quantity}} · {{name}}",
+    "validUntil": "صالح حتى {{date}}",
+    "validity": "صالح لمدة شهر من التفعيل، لسيارة واحدة.",
+    "pendingNote": "سنقوم بتفعيله بعد تأكيد الدفع.",
+    "vehicle": "لأي سيارة؟",
+    "addCarHint": "أضف سيارة من «احجز غسيل» أولاً.",
+    "payment": "طريقة الدفع",
+    "referencePlaceholder": "رقم العملية (بعد التحويل)",
+    "buy": "شراء الاشتراك",
+    "buying": "جارٍ الإرسال…",
+    "bought": "سنفعّل اشتراكك فور تأكيد الدفع.",
+    "save": "وفّر {{amount}}",
+    "notForThisCar": "غير متاح لنوع سيارتك",
+    "cancelRequest": "إلغاء الطلب",
+    "status": {
+      "pending_review": "قيد المراجعة",
+      "active": "نشط",
+      "rejected": "مرفوض",
+      "cancelled": "ملغى",
+      "expired": "منتهي"
+    },
+    "errors": {
+      "noWashesLeft": "لا توجد غسلات متبقية لهذه الخدمة في اشتراكك.",
+      "notActive": "هذا الاشتراك غير نشط.",
+      "expiresBefore": "ينتهي اشتراكك قبل هذا التاريخ.",
+      "notForThisCar": "هذا الاشتراك لسيارة أخرى.",
+      "noPrice": "هذا الاشتراك غير متاح لنوع سيارتك.",
+      "unavailable": "هذا الاشتراك لم يعد متاحاً."
+    },
+    "myPackage": "اشتراكي",
+    "ofTotal": "متبقي من {{total}}",
+    "savePct": "وفّر {{pct}}%",
+    "perMonth": "/ شهرياً",
+    "insteadOf": "بدلاً من {{price}}",
+    "perkOneCar": "لسيارة واحدة",
+    "perkOneMonth": "صالح لمدة شهر",
+    "choose": "اختر هذا الاشتراك",
+    "sentTitle": "تم إرسال الطلب!",
+    "requestFor": "اطلب · {{price}}"
   }
 }

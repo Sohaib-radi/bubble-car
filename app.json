@@ -6,11 +6,6 @@
     "orientation": "portrait",
     "icon": "./assets/logo.png",
     "userInterfaceStyle": "dark",
-    "splash": {
-      "image": "./assets/logo.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0b0b0c"
-    },
     "android": {
       "package": "com.blackbubblewash.app",
       "adaptiveIcon": {
@@ -19,13 +14,18 @@
       }
     },
     "plugins": [
-      "expo-localization"
-    ],
-    "extra": {
-      "eas": {
-        "projectId": "cd83e62f-e1d0-4211-a39a-227fa52b97f2"
-      }
-    },
-    "owner": "dowhileisdone"
+      "expo-localization",
+      "expo-font",
+      "expo-status-bar",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/logo.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#0b0b0c",
+          "imageWidth": 200
+        }
+      ]
+    ]
   }
 }

@@ -8,8 +8,10 @@ import { useTranslation } from 'react-i18next';
 import { colors, fonts, radius } from '../theme';
 import BottomNav, { NavKey } from '../components/BottomNav';
 import LanguageModal from '../components/LanguageModal';
+import BottomSheet from '../components/BottomSheet';
 import { supabase } from '../lib/supabase';
 import { changeLanguageAndReload, LanguageCode } from '../i18n';
+import { CAR_SELECT, Car, UserPackage, carLabel, fetchMyPackages, localized } from '../lib/catalog';
 
 function initialsOf(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -22,7 +24,9 @@ export default function ProfileScreen({ onNavigate, onLogout }: { onNavigate: (k
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [memberYear, setMemberYear] = useState<number | null>(null);
-  const [carCount, setCarCount] = useState(0);
+  const [cars, setCars] = useState<Car[]>([]);
+  const [myPackages, setMyPackages] = useState<UserPackage[]>([]);
+  const [carsOpen, setCarsOpen] = useState(false);
   const [washCount, setWashCount] = useState(0);
   const [languageModalVisible, setLanguageModalVisible] = useState(false);
 
@@ -42,11 +46,16 @@ export default function ProfileScreen({ onNavigate, onLogout }: { onNavigate: (k
         setMemberYear(new Date(profile.created_at).getFullYear());
       }
 
-      const { count: cars } = await supabase
+      const { data: carRows } = await supabase
         .from('cars')
-        .select('id', { count: 'exact', head: true })
-        .eq('owner_id', user.id);
-      setCarCount(cars ?? 0);
+        .select(CAR_SELECT)
+        .eq('owner_id', user.id)
+        .order('created_at')
+        .returns<Car[]>();
+      setCars(carRows ?? []);
+
+      const { userPackages } = await fetchMyPackages(user.id);
+      setMyPackages(userPackages);
 
       const { count: washes } = await supabase
         .from('bookings')
@@ -61,11 +70,18 @@ export default function ProfileScreen({ onNavigate, onLogout }: { onNavigate: (k
     await changeLanguageAndReload(lang);
   };
 
+  const activePackage = myPackages.find((up) => up.status === 'active') ?? myPackages.find((up) => up.status === 'pending_review');
+
   const MENU: { icon: keyof typeof Feather.glyphMap; label: string; value?: string; onPress?: () => void }[] = [
-    { icon: 'truck', label: t('profile.menu.myCars'), value: String(carCount) },
-    { icon: 'map-pin', label: t('profile.menu.savedAddresses') },
-    { icon: 'credit-card', label: t('profile.menu.paymentMethods') },
-    { icon: 'bell', label: t('profile.menu.notifications') },
+    { icon: 'truck', label: t('profile.menu.myCars'), value: String(cars.length), onPress: () => setCarsOpen(true) },
+    {
+      icon: 'gift',
+      label: t('profile.menu.mySubscription'),
+      value: activePackage
+        ? localized(i18n.language, activePackage.package_name_en, activePackage.package_name_ar)
+        : t('profile.noSubscription'),
+      onPress: () => onNavigate('Packages'),
+    },
     {
       icon: 'globe',
       label: t('profile.menu.language'),
@@ -100,8 +116,6 @@ export default function ProfileScreen({ onNavigate, onLogout }: { onNavigate: (k
           <View style={styles.statsCard}>
             <View style={styles.statItem}><Text style={styles.statValue}>{washCount}</Text><Text style={styles.statLabel}>{t('profile.washes')}</Text></View>
             <View style={styles.divider} />
-            <View style={styles.statItem}><Text style={[styles.statValue, { color: colors.gold }]}>1,240</Text><Text style={styles.statLabel}>{t('profile.points')}</Text></View>
-            <View style={styles.divider} />
             <View style={styles.statItem}><Text style={styles.statValue}>{memberYear ?? '—'}</Text><Text style={styles.statLabel}>{t('profile.member')}</Text></View>
           </View>
 
@@ -127,6 +141,20 @@ export default function ProfileScreen({ onNavigate, onLogout }: { onNavigate: (k
         </ScrollView>
       </SafeAreaView>
       <BottomNav active="Profile" onNavigate={onNavigate} />
+      <BottomSheet visible={carsOpen} onClose={() => setCarsOpen(false)}>
+        <Text style={styles.sheetTitle}>{t('profile.menu.myCars')}</Text>
+        {cars.length === 0 ? (
+          <Text style={styles.sheetEmpty}>{t('profile.noCars')}</Text>
+        ) : (
+          cars.map((car) => (
+            <View key={car.id} style={styles.carRow}>
+              <Feather name="truck" size={18} color={colors.gold} />
+              <Text style={styles.carName} numberOfLines={1}>{carLabel(car)}</Text>
+              <Text style={styles.carPlate}>{car.plate}</Text>
+            </View>
+          ))
+        )}
+      </BottomSheet>
       <LanguageModal
         visible={languageModalVisible}
         currentLanguage={i18n.language as LanguageCode}
@@ -170,5 +198,13 @@ const styles = StyleSheet.create({
     marginTop: 16, height: 52, borderRadius: 15, alignItems: 'center', justifyContent: 'center',
     backgroundColor: 'rgba(220,90,90,0.08)', borderWidth: 1, borderColor: 'rgba(220,90,90,0.25)',
   },
+  sheetTitle: { fontFamily: fonts.bold, fontSize: 18, color: colors.text, marginBottom: 12 },
+  sheetEmpty: { fontFamily: fonts.medium, fontSize: 14, color: colors.textFaint, paddingVertical: 12 },
+  carRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14,
+    borderBottomWidth: 1, borderBottomColor: colors.borderSoft,
+  },
+  carName: { flex: 1, fontFamily: fonts.semibold, fontSize: 15, color: colors.text },
+  carPlate: { fontFamily: fonts.bold, fontSize: 13, color: colors.textFaint, letterSpacing: 1 },
   logoutText: { fontFamily: fonts.bold, fontSize: 14, color: colors.danger, letterSpacing: 0.2 },
 });
